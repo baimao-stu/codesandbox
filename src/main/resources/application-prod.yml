@@ -1,0 +1,7 @@
+server:
+  port: 50001
+
+spring:
+  config:
+    activate:
+      on-profile: prod
