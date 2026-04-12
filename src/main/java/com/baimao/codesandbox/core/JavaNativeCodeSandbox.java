@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
+import java.util.Arrays;
 
 
 /**
@@ -26,8 +27,8 @@ public class JavaNativeCodeSandbox extends CodesandboxTemplate {
     public CodeSandboxCmd getCmd(String userCodeParentPath, String userCodePath) {
         return CodeSandboxCmd
                 .builder()
-                .compileCmd(String.format("javac -encoding utf-8 %s", userCodePath))
-                .runCmd(String.format("java -Xmx256m -Dfile.encoding=UTF-8 -cp %s Main", userCodeParentPath))
+                .compileCmd(Arrays.asList("javac", "-encoding", "utf-8", userCodePath))
+                .runCmd(Arrays.asList("java", "-Xmx256m", "-Dfile.encoding=UTF-8", "-cp", userCodeParentPath, "Main"))
                 .build();
     }
 }

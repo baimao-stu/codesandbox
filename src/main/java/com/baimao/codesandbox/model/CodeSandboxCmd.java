@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.List;
 
 /**
  * 沙箱需要执行的命令（1.编译 2.运行）
@@ -13,6 +14,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class CodeSandboxCmd {
-    private String compileCmd;
-    private String runCmd;
+    private List<String> compileCmd;
+    private List<String> runCmd;
 }

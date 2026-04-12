@@ -11,6 +11,8 @@ public class CodeSandboxFactory {
                 return new JavaNativeCodeSandbox();
             case "cpp":
                 return new CppNativeCodeSandbox();
+            case "python":
+                return new PythonNativeCodeSandbox();
             default:
                 throw new RuntimeException("暂不支持");
         }
