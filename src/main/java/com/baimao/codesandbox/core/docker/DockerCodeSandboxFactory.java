@@ -1,16 +1,21 @@
 package com.baimao.codesandbox.core.docker;
 
-
-/**
- * 根据语言返回对应 Docker沙箱
- */
 public class DockerCodeSandboxFactory {
+
+    private static final JavaDockerCodeSandbox JAVA_INSTANCE = new JavaDockerCodeSandbox();
+    private static final CppDockerCodeSandbox CPP_INSTANCE = new CppDockerCodeSandbox();
+    private static final PythonDockerCodeSandbox PYTHON_INSTANCE = new PythonDockerCodeSandbox();
+
     public static DockerCodesandboxTemplate getInstance(String language) {
         switch (language) {
             case "java":
-                return new JavaDockerCodeSandbox();
+                return JAVA_INSTANCE;
+            case "cpp":
+                return CPP_INSTANCE;
+            case "python":
+                return PYTHON_INSTANCE;
             default:
-                throw new RuntimeException("暂不支持");
+                throw new RuntimeException("Unsupported language");
         }
     }
 }
