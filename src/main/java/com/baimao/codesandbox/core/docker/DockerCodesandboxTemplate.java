@@ -375,6 +375,7 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
     private void removeContainer(String containerId) {
         try {
             dockerClient.removeContainerCmd(containerId).withForce(true).exec();
+            log.info("remove container success, containerId={}", containerId);
         } catch (Exception e) {
             log.warn("remove container failed, containerId={}", containerId, e);
         }
