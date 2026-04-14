@@ -6,6 +6,7 @@ import com.baimao.codesandbox.core.docker.DockerCodeSandboxFactory;
 import com.baimao.codesandbox.core.docker.DockerCodesandboxTemplate;
 import com.baimao.codesandbox.model.ExecuteCodeRequest;
 import com.baimao.codesandbox.model.ExecuteCodeResponse;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +42,11 @@ public class MainController {
 //        CodesandboxTemplate codesandboxTemplate = CodeSandboxFactory.getInstance(language);
         DockerCodesandboxTemplate codesandboxTemplate = DockerCodeSandboxFactory.getInstance(language);
         return codesandboxTemplate.executeCode(executeCodeRequest);
+    }
+
+    @GetMapping("/healthy")
+    public String healthy() {
+        return "healthy";
     }
 
 }
