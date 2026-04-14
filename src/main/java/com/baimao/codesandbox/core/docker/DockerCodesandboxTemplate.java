@@ -143,7 +143,11 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
 
     public ExecuteCodeResponse compileCodeFile(String containerId, String userCodeParentDir, String containerCodeDir) {
         ExecCreateCmdResponse compileExecCreateCmdResponse = createCompileCmd(containerId, containerCodeDir);
+
         ExecuteCodeResponse executeCodeResponse = null;
+        if(compileExecCreateCmdResponse == null) {
+            return executeCodeResponse;
+        }
 
         String compileExecId = compileExecCreateCmdResponse.getId();
         final StringBuilder compileOutput = new StringBuilder();

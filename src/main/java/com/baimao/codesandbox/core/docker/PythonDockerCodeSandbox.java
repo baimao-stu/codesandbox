@@ -20,11 +20,12 @@ public class PythonDockerCodeSandbox extends DockerCodesandboxTemplate {
 
     @Override
     protected ExecCreateCmdResponse createCompileCmd(String containerId, String containerCodeDir) {
-        return dockerClient.execCreateCmd(containerId)
-                .withCmd("python3", "-m", "py_compile", containerCodeDir + "/" + main_name)
-                .withAttachStdout(true)
-                .withAttachStderr(true)
-                .exec();
+        //  return dockerClient.execCreateCmd(containerId)
+        //          .withCmd("python3", "-m", "py_compile", containerCodeDir + "/" + main_name)
+        //          .withAttachStdout(true)
+        //          .withAttachStderr(true)
+        //          .exec();
+        return null;
     }
 
     @Override
