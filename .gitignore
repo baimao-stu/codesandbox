@@ -4,6 +4,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 tmpCode
+perf
 
 ### STS ###
 .apt_generated
