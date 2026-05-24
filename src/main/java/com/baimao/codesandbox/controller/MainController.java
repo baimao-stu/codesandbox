@@ -1,7 +1,5 @@
 package com.baimao.codesandbox.controller;
 
-import com.baimao.codesandbox.core.CodeSandboxFactory;
-import com.baimao.codesandbox.core.CodesandboxTemplate;
 import com.baimao.codesandbox.core.docker.DockerCodeSandboxFactory;
 import com.baimao.codesandbox.core.docker.DockerCodesandboxTemplate;
 import com.baimao.codesandbox.model.ExecuteCodeRequest;
@@ -24,6 +22,13 @@ public class MainController {
     //接口调用鉴权请求头和密钥
     private static final String AUTH_REQUEST_HEADER = "auth";
     private static final String AUTH_REQUEST_SECRET = "secret";
+
+    private final DockerCodeSandboxFactory dockerCodeSandboxFactory;
+
+    public MainController(DockerCodeSandboxFactory dockerCodeSandboxFactory) {
+        this.dockerCodeSandboxFactory = dockerCodeSandboxFactory;
+    }
+
     @PostMapping("/executeCode")
     ExecuteCodeResponse executeCode(@RequestBody ExecuteCodeRequest executeCodeRequest,
                                     HttpServletRequest request,
@@ -40,7 +45,7 @@ public class MainController {
 
         String language = executeCodeRequest.getLanguage();
 //        CodesandboxTemplate codesandboxTemplate = CodeSandboxFactory.getInstance(language);
-        DockerCodesandboxTemplate codesandboxTemplate = DockerCodeSandboxFactory.getInstance(language);
+        DockerCodesandboxTemplate codesandboxTemplate = dockerCodeSandboxFactory.getInstance(language);
         return codesandboxTemplate.executeCode(executeCodeRequest);
     }
 

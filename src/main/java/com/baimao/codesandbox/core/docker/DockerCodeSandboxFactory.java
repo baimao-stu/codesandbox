@@ -1,19 +1,29 @@
 package com.baimao.codesandbox.core.docker;
 
+import com.baimao.codesandbox.core.docker.pool.SandboxContainerPoolManager;
+import org.springframework.stereotype.Component;
+
+@Component
 public class DockerCodeSandboxFactory {
 
-    private static final JavaDockerCodeSandbox JAVA_INSTANCE = new JavaDockerCodeSandbox();
-    private static final CppDockerCodeSandbox CPP_INSTANCE = new CppDockerCodeSandbox();
-    private static final PythonDockerCodeSandbox PYTHON_INSTANCE = new PythonDockerCodeSandbox();
+    private final JavaDockerCodeSandbox javaInstance;
+    private final CppDockerCodeSandbox cppInstance;
+    private final PythonDockerCodeSandbox pythonInstance;
 
-    public static DockerCodesandboxTemplate getInstance(String language) {
+    public DockerCodeSandboxFactory(SandboxContainerPoolManager poolManager) {
+        this.javaInstance = new JavaDockerCodeSandbox(poolManager);
+        this.cppInstance = new CppDockerCodeSandbox(poolManager);
+        this.pythonInstance = new PythonDockerCodeSandbox(poolManager);
+    }
+
+    public DockerCodesandboxTemplate getInstance(String language) {
         switch (language) {
             case "java":
-                return JAVA_INSTANCE;
+                return javaInstance;
             case "cpp":
-                return CPP_INSTANCE;
+                return cppInstance;
             case "python":
-                return PYTHON_INSTANCE;
+                return pythonInstance;
             default:
                 throw new RuntimeException("Unsupported language");
         }

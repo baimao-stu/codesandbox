@@ -3,38 +3,31 @@ package com.baimao.codesandbox.core.docker;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baimao.codesandbox.CodeSandbox;
+import com.baimao.codesandbox.core.docker.pool.SandboxBusyException;
+import com.baimao.codesandbox.core.docker.pool.SandboxContainer;
+import com.baimao.codesandbox.core.docker.pool.SandboxContainerFactory;
+import com.baimao.codesandbox.core.docker.pool.SandboxContainerPoolManager;
 import com.baimao.codesandbox.docker.DockerClientFactory;
 import com.baimao.codesandbox.model.ExecuteCodeRequest;
 import com.baimao.codesandbox.model.ExecuteCodeResponse;
 import com.baimao.codesandbox.model.ExecuteMessage;
 import com.baimao.codesandbox.model.JudgeInfo;
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.async.ResultCallback;
-import com.github.dockerjava.api.command.CreateContainerCmd;
-import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
 import com.github.dockerjava.api.command.InspectExecResponse;
-import com.github.dockerjava.api.command.StatsCmd;
-import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Frame;
-import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.Statistics;
 import com.github.dockerjava.api.model.StreamType;
-import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.command.ExecStartResultCallback;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StopWatch;
 
-import java.io.IOException;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,30 +35,40 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
 
     private static final String USER_DIR = "user.dir";
     private static final String TMP_CODE = "tmpCode";
-    private static final String CONTAINER_WORKSPACE = "/sandbox";
+    private static final String COMPILE_TIMEOUT_MESSAGE = "Compile timeout";
+    private static final String RUN_TIMEOUT_MESSAGE = "Time Limit Exceeded";
 
+    protected final DockerSandboxLanguage sandboxLanguage;
+    protected final SandboxContainerPoolManager poolManager;
     protected String prefix;
     protected String main_name;
-    protected String dockerImage;
     protected long timeOut;
 
     final DockerClient dockerClient = DockerClientFactory.createDockerClient();
+
+    public DockerCodesandboxTemplate(DockerSandboxLanguage sandboxLanguage, SandboxContainerPoolManager poolManager) {
+        this.sandboxLanguage = sandboxLanguage;
+        this.poolManager = poolManager;
+        this.prefix = sandboxLanguage.getPrefix();
+        this.main_name = sandboxLanguage.getMainName();
+    }
 
     @Override
     public ExecuteCodeResponse executeCode(ExecuteCodeRequest executeCodeRequest) {
         String code = executeCodeRequest.getCode();
         List<String> inputList = executeCodeRequest.getInput();
         String userCodeParentDir = null;
-        String containerId = null;
+        SandboxContainer sandboxContainer = null;
+        boolean containerReusable = true;
         StopWatch stopWatch = new StopWatch("executeCode");
 
         try {
             // 1、保存用户代码为文件
             userCodeParentDir = saveCodeFile(code);
 
-            // 2、创建并启动容器
-            containerId = createContainer(dockerImage);
-            dockerClient.startContainerCmd(containerId).exec();
+            // 2、从对应语言的容器池借出一个空闲容器
+            sandboxContainer = poolManager.getPool(sandboxLanguage).acquire();
+            String containerId = sandboxContainer.getContainerId();
 
             String containerCodeDir = getContainerCodeDir(userCodeParentDir);
 
@@ -73,6 +76,7 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
             ExecuteCodeResponse compileResponse = compileCodeFile(containerId, userCodeParentDir, containerCodeDir);
             log.info("compile result = {}", compileResponse);
             if (compileResponse != null) {
+                containerReusable = !COMPILE_TIMEOUT_MESSAGE.equals(compileResponse.getMessage());
                 return compileResponse;
             }
 
@@ -80,7 +84,15 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
             stopWatch.start("runFile");
             List<ExecuteMessage> executeMessageList = runFile(containerId, containerCodeDir, inputList);
             stopWatch.stop();
+            containerReusable = !hasTimeout(executeMessageList);
             return getOutputResponse(executeMessageList);
+        }
+//        catch (SandboxBusyException e) {
+//            return getBusyResponse();
+//        }
+        catch (RuntimeException e) {
+            containerReusable = false;
+            throw e;
         } finally {
             log.info("程序执行所有样例时间： = {} ms", stopWatch.getTotalTimeMillis());
 //            log.info(stopWatch.prettyPrint());
@@ -90,31 +102,14 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
                     log.error("delete file failed, path = {}", userCodeParentDir);
                 }
             }
-            if (StrUtil.isNotBlank(containerId)) {
-                removeContainer(containerId);
+            if (sandboxContainer != null) {
+                if (containerReusable) {
+                    poolManager.getPool(sandboxLanguage).release(sandboxContainer);
+                } else {
+                    poolManager.getPool(sandboxLanguage).invalidate(sandboxContainer);
+                }
             }
         }
-    }
-
-    private String createContainer(String dockerImage) {
-        String sandboxHostRoot = getSandboxHostRoot();
-        if (!FileUtil.exist(sandboxHostRoot)) {
-            FileUtil.mkdir(sandboxHostRoot);
-        }
-
-        CreateContainerCmd containerCmd = dockerClient.createContainerCmd(dockerImage);
-        HostConfig hostConfig = new HostConfig();
-        hostConfig.setBinds(new Bind(sandboxHostRoot, new Volume(CONTAINER_WORKSPACE)));
-        hostConfig.withMemory(256 * 1000 * 1000L);
-        hostConfig.withCpuCount(1L);
-
-        CreateContainerResponse createContainerResponse = containerCmd
-                .withNetworkDisabled(true)
-                .withReadonlyRootfs(true)
-                .withHostConfig(hostConfig)
-                .withCmd("sh", "-c", "while true; do sleep 3600; done")
-                .exec();
-        return createContainerResponse.getId();
     }
 
     private String getSandboxHostRoot() {
@@ -122,7 +117,7 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
     }
 
     private String getContainerCodeDir(String userCodeParentDir) {
-        return CONTAINER_WORKSPACE + "/" + new File(userCodeParentDir).getName();
+        return SandboxContainerFactory.CONTAINER_WORKSPACE + "/" + new File(userCodeParentDir).getName();
     }
 
     public String saveCodeFile(String code) {
@@ -185,12 +180,9 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
         if (compileTimeout[0]) {
             executeCodeResponse = new ExecuteCodeResponse();
             executeCodeResponse.setOutput(new ArrayList<>());
-            executeCodeResponse.setMessage("Compile timeout");
+            executeCodeResponse.setMessage(COMPILE_TIMEOUT_MESSAGE);
             executeCodeResponse.setStatus(3);
             executeCodeResponse.setJudgeInfo(new JudgeInfo());
-            if (FileUtil.exist(userCodeParentDir)) {
-                FileUtil.del(userCodeParentDir);
-            }
             return executeCodeResponse;
         }
 
@@ -202,9 +194,6 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
             executeCodeResponse.setMessage(StrUtil.isNotBlank(compileError.toString()) ? compileError.toString() : compileOutput.toString());
             executeCodeResponse.setStatus(3);
             executeCodeResponse.setJudgeInfo(new JudgeInfo());
-            if (FileUtil.exist(userCodeParentDir)) {
-                FileUtil.del(userCodeParentDir);
-            }
             return executeCodeResponse;
         }
 
@@ -236,6 +225,7 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
         final StringBuilder outputMessage = new StringBuilder();
         final StringBuilder errorOutputMessage = new StringBuilder();
         final long[] maxMemory = {0};
+        final boolean[] runCompleted = {false};
 //        final CountDownLatch firstStatsLatch = new CountDownLatch(1);
 //        final AtomicBoolean statsClosed = new AtomicBoolean(false);
 
@@ -251,6 +241,12 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
                     outputMessage.append(payload);
                 }
                 super.onNext(frame);
+            }
+
+            @Override
+            public void onComplete() {
+                runCompleted[0] = true;
+                super.onComplete();
             }
         };
 
@@ -313,6 +309,21 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
 //            statsCmd.close();
         }
 
+        if (runCompleted[0]) {
+            InspectExecResponse runInspect = dockerClient.inspectExecCmd(execId).exec();
+            Long exitCode = runInspect.getExitCodeLong();
+            if (exitCode != null) {
+                executeMessage.setWaitValue(exitCode.intValue());
+                if (exitCode != 0 && errorOutputMessage.length() == 0) {
+                    errorOutputMessage.append("Process exited with code ").append(exitCode);
+                }
+            }
+        } else {
+            executeMessage.setTimeout(true);
+            errorOutputMessage.append(RUN_TIMEOUT_MESSAGE);
+            time = timeOut;
+        }
+
         executeMessage.setOutputMessage(outputMessage.length() == 0 ? null : outputMessage.toString());
         executeMessage.setErrorOutputMessage(errorOutputMessage.length() == 0 ? null : errorOutputMessage.toString());
         executeMessage.setTime(time);
@@ -345,6 +356,11 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
         long maxTime = 0;
         long maxMemory = 0;
         for (ExecuteMessage executeMessage : executeMessageList) {
+            if (Boolean.TRUE.equals(executeMessage.getTimeout())) {
+                executeCodeResponse.setMessage(RUN_TIMEOUT_MESSAGE);
+                executeCodeResponse.setStatus(3);
+                break;
+            }
             String errorOutputMessage = executeMessage.getErrorOutputMessage();
             if (StrUtil.isNotBlank(errorOutputMessage)) {
                 executeCodeResponse.setMessage(errorOutputMessage);
@@ -376,13 +392,13 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
         return FileUtil.del(userCodeParentDir);
     }
 
-    private void removeContainer(String containerId) {
-        try {
-            dockerClient.removeContainerCmd(containerId).withForce(true).exec();
-            log.info("remove container success, containerId={}", containerId);
-        } catch (Exception e) {
-            log.warn("remove container failed, containerId={}", containerId, e);
+    private boolean hasTimeout(List<ExecuteMessage> executeMessageList) {
+        for (ExecuteMessage executeMessage : executeMessageList) {
+            if (Boolean.TRUE.equals(executeMessage.getTimeout())) {
+                return true;
+            }
         }
+        return false;
     }
 
     private ExecuteCodeResponse getErrorResponse() {
@@ -390,6 +406,15 @@ public abstract class DockerCodesandboxTemplate implements CodeSandbox {
         executeCodeResponse.setOutput(new ArrayList<>());
         executeCodeResponse.setMessage("Compile error");
         executeCodeResponse.setStatus(2);
+        executeCodeResponse.setJudgeInfo(new JudgeInfo());
+        return executeCodeResponse;
+    }
+
+    private ExecuteCodeResponse getBusyResponse() {
+        ExecuteCodeResponse executeCodeResponse = new ExecuteCodeResponse();
+        executeCodeResponse.setOutput(new ArrayList<>());
+        executeCodeResponse.setMessage("Sandbox busy");
+        executeCodeResponse.setStatus(3);
         executeCodeResponse.setJudgeInfo(new JudgeInfo());
         return executeCodeResponse;
     }

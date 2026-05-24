@@ -1,20 +1,14 @@
 package com.baimao.codesandbox.core.docker;
 
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
-
-import java.io.File;
+import com.baimao.codesandbox.core.docker.pool.SandboxContainerPoolManager;
 
 public class PythonDockerCodeSandbox extends DockerCodesandboxTemplate {
 
     private static final Long TIME_OUT = 10000L;
-    private static final String PREFIX = File.separator + "python";
-    private static final String PYTHON_NAME = "Main.py";
-    private static final String DOCKER_IMAGE = "python:3.12-alpine";
 
-    public PythonDockerCodeSandbox() {
-        super.prefix = PREFIX;
-        super.main_name = PYTHON_NAME;
-        super.dockerImage = DOCKER_IMAGE;
+    public PythonDockerCodeSandbox(SandboxContainerPoolManager poolManager) {
+        super(DockerSandboxLanguage.PYTHON, poolManager);
         super.timeOut = TIME_OUT;
     }
 

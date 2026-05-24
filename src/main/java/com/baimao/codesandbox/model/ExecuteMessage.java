@@ -34,4 +34,9 @@ public class ExecuteMessage {
      */
     private Long memory;
 
+    /**
+     * 当前测试用例是否执行超时
+     */
+    private Boolean timeout;
+
 }

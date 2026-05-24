@@ -1,20 +1,14 @@
 package com.baimao.codesandbox.core.docker;
 
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
-
-import java.io.File;
+import com.baimao.codesandbox.core.docker.pool.SandboxContainerPoolManager;
 
 public class JavaDockerCodeSandbox extends DockerCodesandboxTemplate {
 
     private static final Long TIME_OUT = 10000L;
-    private static final String PREFIX = File.separator + "java";
-    private static final String JAVA_NAME = "Main.java";
-    private static final String DOCKER_IMAGE = "eclipse-temurin:21-jdk-alpine";
 
-    public JavaDockerCodeSandbox() {
-        super.prefix = PREFIX;
-        super.main_name = JAVA_NAME;
-        super.dockerImage = DOCKER_IMAGE;
+    public JavaDockerCodeSandbox(SandboxContainerPoolManager poolManager) {
+        super(DockerSandboxLanguage.JAVA, poolManager);
         super.timeOut = TIME_OUT;
     }
 

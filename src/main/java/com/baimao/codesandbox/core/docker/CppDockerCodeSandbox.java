@@ -2,21 +2,15 @@ package com.baimao.codesandbox.core.docker;
 
 
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
-
-import java.io.File;
+import com.baimao.codesandbox.core.docker.pool.SandboxContainerPoolManager;
 
 public class CppDockerCodeSandbox extends DockerCodesandboxTemplate {
 
     private static final Long TIME_OUT = 10000L;
-    private static final String PREFIX = File.separator + "cpp";
-    private static final String CPP_NAME = "main.cpp";
     private static final String EXECUTABLE_NAME = "main";
-    private static final String DOCKER_IMAGE = "gcc:13.2";
 
-    public CppDockerCodeSandbox() {
-        super.prefix = PREFIX;
-        super.main_name = CPP_NAME;
-        super.dockerImage = DOCKER_IMAGE;
+    public CppDockerCodeSandbox(SandboxContainerPoolManager poolManager) {
+        super(DockerSandboxLanguage.CPP, poolManager);
         super.timeOut = TIME_OUT;
     }
 

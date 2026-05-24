@@ -1,2 +1,14 @@
 server:
   port: 50001
+
+sandbox:
+  pool:
+    java-size: 2
+    cpp-size: 2
+    python-size: 2
+    acquire-timeout-ms: 3000
+#    max-use-count: 50 # 每个沙箱实例最大使用次数，超过后销毁重建一个新的
+    max-use-count: 1 # 每个沙箱实例最大使用次数，超过后销毁重建一个新的
+    max-alive-ms: 1800000
+    memory-bytes: 256000000
+    cpu-count: 1

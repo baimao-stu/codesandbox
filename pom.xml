@@ -48,6 +48,8 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <!-- 当前构建环境使用 JDK 21，显式使用兼容版本避免编译器内部 API 报错 -->
+            <version>1.18.42</version>
             <optional>true</optional>
         </dependency>
         <dependency>
